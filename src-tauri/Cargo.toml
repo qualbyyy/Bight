@@ -1,0 +1,44 @@
+[package]
+name = "qonnect-tauri"
+version = "0.1.0"
+edition = "2024"
+publish = false
+build = "build.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "qonnect"
+path = "src/main.rs"
+
+[dependencies]
+base64 = "0.22"
+if-addrs = "0.15"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = { version = "2.12.7", features = ["tray-icon"] }
+thiserror = "2.0"
+tokio = { version = "1.54", features = ["io-util", "macros", "net", "process", "rt-multi-thread", "sync", "time"] }
+uuid = { version = "1.12", features = ["serde", "v4"] }
+vpn-core = { path = "../crates/vpn-core" }
+vpn-sync = { path = "../crates/vpn-sync" }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Networking_WinInet",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_JobObjects",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+] }
+
+[build-dependencies]
+tauri-build = "2.7.6"

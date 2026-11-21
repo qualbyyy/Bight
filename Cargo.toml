@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "crates/vpn-core",
+    "crates/vpn-sync",
+    "src-tauri",
+]
+resolver = "2"

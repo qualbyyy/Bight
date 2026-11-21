@@ -67,12 +67,11 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      - name: Initialize Android project if needed
+      - name: Initialize Android project
         shell: bash
         run: |
-          if [[ ! -d src-tauri/gen/android ]]; then
-            npx tauri android init
-          fi
+          rm -rf src-tauri/gen/android
+          npx tauri android init
 
       - name: Create libbox directory
         shell: bash

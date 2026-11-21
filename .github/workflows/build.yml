@@ -205,6 +205,7 @@ jobs:
           git clone --depth 1 --branch "$SING_BOX_VERSION" \
             https://github.com/SagerNet/sing-box.git "$RUNNER_TEMP/sing-box"
           go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.13
+          export PATH="$(go env GOPATH)/bin:$PATH"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           cd "$RUNNER_TEMP/sing-box"
           export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_NDK_LATEST_HOME:-}}"

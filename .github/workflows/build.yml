@@ -113,9 +113,18 @@ jobs:
         with:
           go-version: stable
 
+      - name: Setup Android NDK
+        if: steps.libbox.outputs.needs_build == 'true'
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r28
+
       - name: Build libbox.aar
         if: steps.libbox.outputs.needs_build == 'true'
         shell: bash
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           set -euo pipefail
           git clone --depth 1 --branch "$SING_BOX_VERSION" \
@@ -125,7 +134,6 @@ jobs:
           export PATH="$(go env GOPATH)/bin:$PATH"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           cd "$RUNNER_TEMP/sing-box"
-          export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_NDK_LATEST_HOME:-}}"
           export CGO_LDFLAGS_ALLOW='-l:.*'
           test -n "$ANDROID_NDK_HOME"
           go run ./cmd/internal/build_libbox -target android -platform android/arm64
@@ -134,19 +142,22 @@ jobs:
 
       - name: Configure Android NDK
         shell: bash
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           set -euo pipefail
-          test -n "${ANDROID_NDK_LATEST_HOME:-}"
-          echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
-          echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          test -n "$ANDROID_NDK_HOME"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_NDK_HOME" >> "$GITHUB_ENV"
 
       - name: Build Android APK
         shell: bash
         env:
-          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+          NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           set -euo pipefail
-          export NDK_HOME="${NDK_HOME:-${ANDROID_NDK_LATEST_HOME:-}}"
+          export NDK_HOME="${NDK_HOME:-$ANDROID_NDK_HOME}"
           export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$NDK_HOME}"
           test -n "$NDK_HOME"
           npx tauri android build --debug --apk --target aarch64

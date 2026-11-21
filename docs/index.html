@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f1e8" />
+    <meta name="description" content="Bight — локальный VPN-клиент и синхронизация профилей между телефоном и компьютером." />
+    <title>Bight — VPN без облака</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="#top" aria-label="Bight, на главную">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
+          <span><strong>Bight</strong><small>private connection</small></span>
+        </a>
+        <nav class="nav" aria-label="Навигация">
+          <a href="#sync">LAN Sync</a>
+          <a href="#downloads">Скачать</a>
+          <a href="#how">Как это работает</a>
+          <a href="https://github.com/qualbyyy/Bight" target="_blank" rel="noreferrer">GitHub ↗</a>
+        </nav>
+        <a class="nav-button" href="https://github.com/qualbyyy/Bight/releases" target="_blank" rel="noreferrer">Релизы</a>
+      </header>
+
+      <main id="top">
+        <section class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">VPN client / local sync</p>
+            <h1>Один профиль.<br /><em>Два устройства.</em></h1>
+            <p class="hero-lead">Bight подключает sing-box и переносит профили напрямую между компьютером и телефоном. Без облачного аккаунта, без ручного копирования ссылок.</p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#downloads">Скачать Bight <span>↓</span></a>
+              <a class="button button-secondary" href="#sync">Посмотреть Sync <span>→</span></a>
+            </div>
+            <div class="hero-meta"><span class="status-dot"></span><span>Linux · Windows · Android</span><span class="meta-separator">/</span><span>LAN-first</span></div>
+          </div>
+          <div class="hero-device" aria-label="Макет экрана синхронизации">
+            <div class="device-window">
+              <div class="window-bar"><span class="window-title"><span class="tiny-mark"></span>Bight <small>LAN Sync</small></span><span class="window-dots">— □ ×</span></div>
+              <div class="window-body">
+                <div class="sync-card-head"><div><span class="mini-label">SYNC SESSION</span><h2>Подключить телефон</h2></div><span class="live-label"><span></span> WAITING</span></div>
+                <div class="qr-layout">
+                  <div class="qr-code" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                  <div class="sync-details"><div class="pin-label">PAIRING PIN</div><div class="pin">482 910</div><div class="ttl"><span>Session expires</span><strong>02:41</strong></div><div class="ttl-bar"><span></span></div><div class="peer"><span class="peer-icon">↔</span><span><strong>Nearby device</strong><small>waiting for Android</small></span><span class="peer-state">—</span></div></div>
+                </div>
+                <div class="window-footer"><span>encrypted local session</span><span>X25519 · ChaCha20</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="proof-strip" aria-label="Основные свойства">
+          <div><strong>01</strong><span>QR pairing</span></div><div><strong>02</strong><span>End-to-end encryption</span></div><div><strong>03</strong><span>No cloud relay</span></div><div><strong>04</strong><span>Profiles stay local</span></div>
+        </section>
+
+        <section class="sync-section" id="sync">
+          <div class="section-intro"><p class="eyebrow">01 / LAN Sync</p><h2>Перенести профиль<br />так же просто, как открыть камеру.</h2><p>Компьютер создаёт короткую локальную сессию. Телефон сканирует QR-код, устройства находят друг друга по Wi‑Fi и обмениваются изменениями напрямую.</p></div>
+          <div class="sync-flow">
+            <article class="flow-step"><span class="step-number">01</span><div class="flow-icon">▣</div><h3>Откройте Bight на ПК</h3><p>Запустите LAN Sync в приложении и покажите QR-код для новой пары.</p></article>
+            <div class="flow-line" aria-hidden="true">→</div>
+            <article class="flow-step active"><span class="step-number">02</span><div class="flow-icon">⌁</div><h3>Сканируйте телефоном</h3><p>Камера считывает pairing-код. Никаких логинов и копирования длинных URI.</p></article>
+            <div class="flow-line" aria-hidden="true">→</div>
+            <article class="flow-step"><span class="step-number">03</span><div class="flow-icon">✓</div><h3>Профиль на месте</h3><p>Изменения объединяются локально, а удалённые записи не возвращаются сами.</p></article>
+          </div>
+        </section>
+
+        <section class="feature-grid" id="how">
+          <article class="feature feature-large"><div class="feature-top"><span class="feature-index">A</span><span class="feature-tag">CORE</span></div><h3>Синхронизация<br />без облачного посредника</h3><p>Pairing, транспорт и merge происходят внутри локальной сети. Профили не нужно загружать на сторонний сервер, чтобы получить их на втором устройстве.</p><div class="feature-code">X25519 <span>+</span> ChaCha20-Poly1305</div></article>
+          <article class="feature"><div class="feature-top"><span class="feature-index">B</span><span class="feature-tag">ROUTING</span></div><h3>VPN не ломает LAN</h3><p>RFC1918-сети остаются доступными, поэтому синхронизация работает даже при включённом туннеле.</p><div class="route-diagram"><span>PHONE</span><b>↔</b><span>PC</span></div></article>
+          <article class="feature"><div class="feature-top"><span class="feature-index">C</span><span class="feature-tag">ENGINE</span></div><h3>Один интерфейс для sing-box</h3><p>Импортируйте ноды и подписки, проверяйте пинг, переключайте TUN или System Proxy, смотрите трафик и логи.</p><div class="engine-line"><span class="engine-dot"></span><span>sing-box ≥ 1.14</span></div></article>
+        </section>
+
+        <section class="download-section" id="downloads">
+          <div class="section-intro compact"><p class="eyebrow">02 / Downloads</p><h2>Выберите устройство.</h2><p>Стабильные сборки публикуются в GitHub Releases. Тестовые артефакты доступны в Actions.</p></div>
+          <div class="download-list">
+            <a class="download-row" href="https://github.com/qualbyyy/Bight/releases" target="_blank" rel="noreferrer"><span class="download-icon">⌘</span><span class="download-copy"><strong>Linux</strong><small>AppImage / deb · x86_64</small></span><span class="download-arrow">↗</span></a>
+            <a class="download-row" href="https://github.com/qualbyyy/Bight/releases" target="_blank" rel="noreferrer"><span class="download-icon">⊞</span><span class="download-copy"><strong>Windows</strong><small>EXE / MSI · x64</small></span><span class="download-arrow">↗</span></a>
+            <a class="download-row" href="https://github.com/qualbyyy/Bight/releases" target="_blank" rel="noreferrer"><span class="download-icon">▣</span><span class="download-copy"><strong>Android</strong><small>APK · arm64</small></span><span class="download-arrow">↗</span></a>
+          </div>
+        </section>
+
+        <section class="closing"><div><p class="eyebrow">Bight / private connection</p><h2>Профиль должен<br /><em>следовать за вами.</em></h2></div><a class="button button-primary" href="https://github.com/qualbyyy/Bight" target="_blank" rel="noreferrer">Открыть исходники <span>↗</span></a></section>
+      </main>
+
+      <footer class="footer"><span>© Bight / qualbyyy</span><span>Built for local networks</span><span><a href="https://github.com/qualbyyy/Bight/issues" target="_blank" rel="noreferrer">Issues ↗</a> · <a href="https://github.com/qualbyyy/Bight/actions" target="_blank" rel="noreferrer">Actions ↗</a></span></footer>
+    </div>
+  </body>
+</html>

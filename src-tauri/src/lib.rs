@@ -5,6 +5,7 @@ mod core_manager;
 mod state;
 mod tray;
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(mobile)]
     let builder = tauri::Builder::default()

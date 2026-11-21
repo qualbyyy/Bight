@@ -5,6 +5,7 @@ import type {
   AppProfile,
   ClashConnections,
   ConnectionStatus,
+  ConnectResult,
   LogEntry,
   MergeReport,
   NodeConfig,
@@ -12,6 +13,7 @@ import type {
   PingResult,
   ProfileMode,
   RoutingRule,
+  RoutingRuleInput,
   SyncHostInfo,
   SyncPeer,
   Subscription,
@@ -52,13 +54,7 @@ export async function deleteSubscription(subscriptionId: string): Promise<void> 
   return invoke("delete_subscription", { subscriptionId });
 }
 
-export async function createRule(input: {
-  enabled: boolean;
-  matchType: string;
-  value: string;
-  action: string;
-  comment: string;
-}): Promise<RoutingRule> {
+export async function createRule(input: RoutingRuleInput): Promise<RoutingRule> {
   return invoke<RoutingRule>("create_rule", { input });
 }
 
@@ -69,8 +65,8 @@ export async function deleteRule(ruleId: string): Promise<void> {
 export async function connect(
   nodeId: string | null,
   mode: ProfileMode,
-): Promise<{ node_id: string; mode: ProfileMode; mixed_port: number; clash_port: number }> {
-  return invoke("connect", { nodeId, mode });
+): Promise<ConnectResult> {
+  return invoke<ConnectResult>("connect", { nodeId, mode });
 }
 
 export async function disconnect(): Promise<void> {

@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/mobile-schema.json",
   "identifier": "mobile",
-  "description": "Qonnect mobile core permissions reserved for the Phase 5 VPN plugin",
+  "description": "Bight mobile core permissions for the VPN and QR scanner plugins",
   "windows": ["main"],
   "platforms": ["android", "iOS"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "barcode-scanner:default"]
 }

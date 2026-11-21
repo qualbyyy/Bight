@@ -377,6 +377,8 @@ button,
 }
 
 .connection-title-row strong {
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: min(44vw, 420px);
   overflow: hidden;
   font-size: 14px;
@@ -1655,7 +1657,10 @@ kbd {
   width: min(520px, 100%);
   max-height: min(720px, calc(100dvh - 44px));
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 18px;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
@@ -1990,6 +1995,52 @@ kbd {
   }
   .bottom-tabbar .tab-button.is-active {
     color: var(--accent);
+  }
+  .connection-title-row strong {
+    max-width: none;
+  }
+  .connection-title-row .technical-badge {
+    max-width: 42%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .shortcut-button,
+  .icon-button,
+  .text-button,
+  .subtle-button,
+  .primary-button,
+  .secondary-button,
+  .danger-button,
+  .connect-button {
+    min-height: 44px;
+  }
+  .icon-button,
+  .shortcut-button {
+    width: 44px;
+  }
+  .mode-toggle button,
+  .segmented-control button,
+  .select-trigger,
+  .select-menu button,
+  .sync-tabs button,
+  .command-row,
+  .font-option,
+  .traffic-actions button {
+    min-height: 44px;
+  }
+  .accent-swatch {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .accent-custom-button {
+    width: 44px;
+    height: 44px;
+  }
+  .color-input {
+    height: 44px;
+  }
+  .rule-composer .field {
+    min-width: 0;
   }
 }
 

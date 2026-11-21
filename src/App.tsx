@@ -54,6 +54,13 @@ import {
 } from "lucide-react";
 
 import { BightLogo } from "./BightLogo";
+import {
+  BarcodePermissionError,
+  isMobile,
+  isScanCancelled,
+  openCameraSettings,
+  scanPairingQr,
+} from "./api/barcode";
 import * as api from "./api/tauri";
 import type {
   AppProfile,
@@ -146,7 +153,8 @@ function getStored<T>(key: string, fallback: T): T {
   try {
     const value = localStorage.getItem(key);
     return value === null ? fallback : (JSON.parse(value) as T);
-  } catch {
+  } catch (error) {
+    console.warn(`[Bight] Failed to read localStorage key: ${key}`, error);
     return fallback;
   }
 }
@@ -154,8 +162,8 @@ function getStored<T>(key: string, fallback: T): T {
 function setStored<T>(key: string, value: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    return;
+  } catch (error) {
+    console.warn(`[Bight] Failed to write localStorage key: ${key}`, error);
   }
 }
 
@@ -366,10 +374,14 @@ export default function App() {
         setLogs((current) => [...current.slice(-119), entry]);
       }),
       api.onEvent<string>("sync-host-expired", () => setSyncHostInfo(null)),
-    ]).then((unlisteners) => {
-      if (disposed) unlisteners.forEach((unlisten) => unlisten());
-      else cleanup = unlisteners;
-    });
+    ])
+      .then((unlisteners) => {
+        if (disposed) unlisteners.forEach((unlisten) => unlisten());
+        else cleanup = unlisteners;
+      })
+      .catch((error) => {
+        if (!disposed) setBackendError(errorMessage(error));
+      });
     return () => {
       disposed = true;
       cleanup.forEach((unlisten) => unlisten());
@@ -402,8 +414,8 @@ export default function App() {
         }
         previous = { upload: next.uploadTotal, download: next.downloadTotal, at };
         setConnections(next);
-      } catch {
-        return;
+      } catch (error) {
+        console.warn("[Bight] Failed to refresh Clash connections", error);
       }
     };
     void poll();
@@ -452,8 +464,8 @@ export default function App() {
       link.href = url.toString();
       document.head.appendChild(link);
       return () => link.remove();
-    } catch {
-      return;
+    } catch (error) {
+      console.warn("[Bight] Invalid custom font URL", error);
     }
   }, [customFontUrl]);
 
@@ -599,7 +611,8 @@ export default function App() {
       }
       setImportOpen(true);
       setImportInitialUrl(text.trim());
-    } catch {
+    } catch (error) {
+      console.warn("[Bight] Failed to read clipboard", error);
       setActionError("Не удалось прочитать буфер обмена.");
     }
   }
@@ -645,7 +658,7 @@ export default function App() {
     await runAction(async () => {
       await api.createRule({
         enabled: true,
-        matchType: "domain",
+        match_type: "domain",
         value: domain,
         action,
         comment: `Traffic inspector: ${action}`,
@@ -1108,7 +1121,7 @@ function RulesScreen({
     setSaving(true);
     setError(null);
     try {
-      await api.createRule({ enabled: true, matchType, value: value.trim(), action, comment: "" });
+      await api.createRule({ enabled: true, match_type: matchType, value: value.trim(), action, comment: "" });
       setValue("");
       await onCreated();
     } catch (reason) {
@@ -1248,6 +1261,7 @@ function SyncModal({ open, hostInfo, onHostInfo, onClose }: { open: boolean; hos
   const [report, setReport] = useState<MergeReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [scannerPermissionDenied, setScannerPermissionDenied] = useState(false);
   const [tick, setTick] = useState(() => Date.now());
   useEffect(() => {
     if (!open) return;
@@ -1274,11 +1288,52 @@ function SyncModal({ open, hostInfo, onHostInfo, onClose }: { open: boolean; hos
     if (!pairingUri.trim()) return;
     setBusy(true);
     setError(null);
+    setReport(null);
     try { setReport(await api.connectSyncPeer(pairingUri.trim())); } catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
+  }
+  async function scanAndConnect(): Promise<void> {
+    if (!isMobile) return;
+    setBusy(true);
+    setError(null);
+    setReport(null);
+    setScannerPermissionDenied(false);
+    try {
+      const uri = await scanPairingQr();
+      setPairingUri(uri);
+      setReport(await api.connectSyncPeer(uri));
+    } catch (reason) {
+      if (reason instanceof BarcodePermissionError) {
+        setScannerPermissionDenied(true);
+        setError(reason.permission === "denied" ? "Доступ к камере запрещён. Разрешите его в настройках Bight." : "Bight не получил доступ к камере.");
+      } else if (!isScanCancelled(reason)) {
+        setError(errorMessage(reason));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function openScannerSettings(): Promise<void> {
+    try {
+      await openCameraSettings();
+    } catch (reason) {
+      setError(errorMessage(reason));
+    }
+  }
+  async function stopHost(): Promise<void> {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.stopSyncHost();
+      onHostInfo(null);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setBusy(false);
+    }
   }
   const remaining = hostInfo ? Math.max(0, hostInfo.pairing.expires_at_ms - tick) : 0;
   const progress = hostInfo ? Math.max(0, Math.min(100, (remaining / (180 * 1000)) * 100)) : 0;
-  return <Modal open={open} onClose={onClose} title="LAN Sync" wide><div className="sync-modal"><div className="sync-tabs"><button type="button" className={tab === "host" ? "is-active" : ""} onClick={() => setTab("host")}><QrCode size={15} />Показать QR <span>Host</span></button><button type="button" className={tab === "client" ? "is-active" : ""} onClick={() => setTab("client")}><Link2 size={15} />Подключиться <span>Client</span></button></div>{error && <InlineNotice message={error} tone="error" />}{tab === "host" ? <div className="sync-host-layout"><div className="qr-frame">{hostInfo ? <QRCodeSVG value={hostInfo.qr_payload} size={220} bgColor="#FCFBF8" fgColor="#1B1A18" level="H" includeMargin /> : <div className="qr-placeholder">{busy ? <LoaderCircle className="spin" size={22} /> : <QrCode size={34} />}<span>{busy ? "Создание сессии" : "Нет активной сессии"}</span></div>}</div><div className="sync-details"><p className="eyebrow">PAIRING / 180 SEC</p><h2>Поднесите телефон к QR</h2><p className="sync-muted">Ключ остаётся в QR-пayload и не отправляется в облако.</p>{hostInfo ? <><div className="pin-block"><span>PIN</span><CopyValue value={hostInfo.pin} className="pin-value mono">{formatPin(hostInfo.pin)}</CopyValue></div><div className="ttl-block"><div><span>Сессия истекает через</span><strong className="mono">{formatTtl(remaining)}</strong></div><div className="ttl-track"><span style={{ width: `${progress}%` }} /></div></div><CopyValue value={hostInfo.qr_payload} className="pairing-code mono"><span className="truncate">{hostInfo.qr_payload}</span></CopyValue><div className="sync-actions"><button className="secondary-button" type="button" onClick={() => void refreshHost()} disabled={busy}><RefreshCcw size={15} />Обновить сессию</button><button className="subtle-button" type="button" onClick={() => void api.stopSyncHost().then(() => onHostInfo(null))}><X size={15} />Остановить</button></div></> : <button className="primary-button" type="button" onClick={() => void createHost()} disabled={busy}><Play size={15} />Запустить Host</button>}</div></div> : <div className="sync-client-layout"><div className="client-entry card-surface"><div className="entry-heading"><div><p className="eyebrow">CLIENT / PAIRING URI</p><h2>Введите код устройства</h2></div><button className="secondary-button" type="button" onClick={() => setError("Сканер камеры будет подключён в Android-фазе. Пока вставьте pairing URI.")}><ScanLine size={16} />Камера</button></div><textarea value={pairingUri} onChange={(event) => setPairingUri(event.target.value)} placeholder="qonnect://sync/v1?ips=…" rows={4} /><button className="primary-button" type="button" onClick={() => void connectPeer()} disabled={busy || !pairingUri.trim()}>{busy ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />}Подключить и смержить</button></div><div className="peer-list card-surface"><div className="entry-heading"><div><p className="eyebrow">MDNS / PEERS</p><h2>Устройства рядом</h2></div><button className="icon-button" type="button" title="Обновить список" onClick={() => void discoverPeers()}><RefreshCcw size={15} /></button></div>{peers.length === 0 ? <div className="compact-empty"><Wifi size={18} /><span>Пиры не найдены.</span></div> : peers.map((peer) => <div className="peer-row" key={peer.pairing.session_id}><span className="peer-icon"><Laptop size={16} /></span><div><strong>{peer.instance_name}</strong><span className="mono">{peer.pairing.ips[0]}:{peer.pairing.port}</span></div><button className="text-button" type="button" onClick={() => setPairingUri(JSON.stringify(peer.pairing))}>Выбрать</button></div>)}</div></div>}{report && <div className="merge-report"><span className="eyebrow">MERGE REPORT</span><div><strong>{report.added}</strong><small>добавлено</small></div><div><strong>{report.updated}</strong><small>обновлено</small></div><div><strong>{report.deleted}</strong><small>удалено</small></div><div><strong>{report.conflicts}</strong><small>конфликтов</small></div></div>}</div></Modal>;
+  return <Modal open={open} onClose={onClose} title="LAN Sync" wide><div className="sync-modal"><div className="sync-tabs"><button type="button" className={tab === "host" ? "is-active" : ""} onClick={() => setTab("host")}><QrCode size={15} />Показать QR <span>Host</span></button><button type="button" className={tab === "client" ? "is-active" : ""} onClick={() => setTab("client")}><Link2 size={15} />Подключиться <span>Client</span></button></div>{error && <InlineNotice message={error} tone="error" />}{tab === "host" ? <div className="sync-host-layout"><div className="qr-frame">{hostInfo ? <QRCodeSVG value={hostInfo.qr_payload} size={220} bgColor="#FCFBF8" fgColor="#1B1A18" level="H" includeMargin /> : <div className="qr-placeholder">{busy ? <LoaderCircle className="spin" size={22} /> : <QrCode size={34} />}<span>{busy ? "Создание сессии" : "Нет активной сессии"}</span></div>}</div><div className="sync-details"><p className="eyebrow">PAIRING / 180 SEC</p><h2>Поднесите телефон к QR</h2><p className="sync-muted">Ключ остаётся в QR-пayload и не отправляется в облако.</p>{hostInfo ? <><div className="pin-block"><span>PIN</span><CopyValue value={hostInfo.pin} className="pin-value mono">{formatPin(hostInfo.pin)}</CopyValue></div><div className="ttl-block"><div><span>Сессия истекает через</span><strong className="mono">{formatTtl(remaining)}</strong></div><div className="ttl-track"><span style={{ width: `${progress}%` }} /></div></div><CopyValue value={hostInfo.qr_payload} className="pairing-code mono"><span className="truncate">{hostInfo.qr_payload}</span></CopyValue><div className="sync-actions"><button className="secondary-button" type="button" onClick={() => void refreshHost()} disabled={busy}><RefreshCcw size={15} />Обновить сессию</button><button className="subtle-button" type="button" onClick={() => void stopHost()} disabled={busy}><X size={15} />Остановить</button></div></> : <button className="primary-button" type="button" onClick={() => void createHost()} disabled={busy}><Play size={15} />Запустить Host</button>}</div></div> : <div className="sync-client-layout"><div className="client-entry card-surface"><div className="entry-heading"><div><p className="eyebrow">CLIENT / PAIRING URI</p><h2>Введите код устройства</h2></div>{isMobile && <button className="secondary-button" type="button" onClick={() => void scanAndConnect()} disabled={busy}><ScanLine size={16} />Сканировать QR</button>}</div>{scannerPermissionDenied && <button className="text-button scanner-settings-button" type="button" onClick={() => void openScannerSettings()}>Открыть настройки камеры</button>}<textarea value={pairingUri} onChange={(event) => setPairingUri(event.target.value)} placeholder="Вставьте pairing URI из QR-кода или списка пиров" rows={4} /><button className="primary-button" type="button" onClick={() => void connectPeer()} disabled={busy || !pairingUri.trim()}>{busy ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />}Подключить и смержить</button></div><div className="peer-list card-surface"><div className="entry-heading"><div><p className="eyebrow">MDNS / PEERS</p><h2>Устройства рядом</h2></div><button className="icon-button" type="button" title="Обновить список" onClick={() => void discoverPeers()}><RefreshCcw size={15} /></button></div>{peers.length === 0 ? <div className="compact-empty"><Wifi size={18} /><span>Пиры не найдены.</span></div> : peers.map((peer) => <div className="peer-row" key={peer.pairing.session_id}><span className="peer-icon"><Laptop size={16} /></span><div><strong>{peer.instance_name}</strong><span className="mono">{peer.pairing.ips[0]}:{peer.pairing.port}</span></div><button className="text-button" type="button" onClick={() => setPairingUri(JSON.stringify(peer.pairing))}>Выбрать</button></div>)}</div></div>}{report && <div className="merge-report"><span className="eyebrow">MERGE REPORT</span><div><strong>{report.added}</strong><small>добавлено</small></div><div><strong>{report.updated}</strong><small>обновлено</small></div><div><strong>{report.deleted}</strong><small>удалено</small></div><div><strong>{report.conflicts}</strong><small>конфликтов</small></div></div>}</div></Modal>;
 }
 
 function CommandPalette({ open, actions, onClose }: { open: boolean; actions: Array<{ id: string; label: string; meta: string; icon: IconComponent; run: () => void }>; onClose: () => void }) {
@@ -1297,7 +1352,7 @@ function Modal({ open, onClose, title, children, wide = false, compact = false }
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose, open]);
   if (!open) return null;
-  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className={`modal-sheet ${wide ? "is-wide" : ""} ${compact ? "is-compact" : ""}`} role="dialog" aria-modal="true" aria-label={title}><div className="modal-header"><div><p className="eyebrow">BIGHT / PANEL</p><h2>{title}</h2></div><button className="icon-button" type="button" title="Закрыть" onClick={onClose}><X size={17} /></button></div>{children}</section></div>;
+  return <div className="modal-backdrop" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className={`modal-sheet ${wide ? "is-wide" : ""} ${compact ? "is-compact" : ""}`} role="dialog" aria-modal="true" aria-label={title}><div className="modal-header"><div><p className="eyebrow">BIGHT / PANEL</p><h2>{title}</h2></div><button className="icon-button" type="button" title="Закрыть" onClick={onClose}><X size={17} /></button></div>{children}</section></div>;
 }
 
 function ConfirmModal({ target, onClose, onConfirm }: { target: ConfirmTarget; onClose: () => void; onConfirm: () => void }) {
@@ -1324,7 +1379,13 @@ function CopyValue({ value, children, className = "" }: { value: string; childre
   const [copied, setCopied] = useState(false);
   async function copy(event: React.MouseEvent<HTMLButtonElement>): Promise<void> {
     event.stopPropagation();
-    try { await navigator.clipboard.writeText(value); setCopied(true); window.setTimeout(() => setCopied(false), 1500); } catch { return; }
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch (error) {
+      console.warn("[Bight] Failed to copy value", error);
+    }
   }
   return <button className={`copy-value ${className}`} type="button" onClick={(event) => void copy(event)} title="Скопировать">{children}{copied ? <Check size={14} className="copy-state" /> : <Copy size={14} className="copy-state" />}</button>;
 }

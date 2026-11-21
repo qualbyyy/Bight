@@ -87,6 +87,28 @@ export type RoutingMatch =
 
 export type RoutingAction = "proxy" | "direct" | "reject";
 
+export type NodeInput = {
+  name: string;
+  server: string;
+  server_port: number;
+  protocol: NodeProtocol;
+};
+
+export type RoutingRuleInput = {
+  enabled: boolean;
+  match_type: RoutingMatch;
+  value: string;
+  action: RoutingAction;
+  comment: string;
+};
+
+export type ConnectResult = {
+  node_id: string;
+  mode: ProfileMode;
+  mixed_port: number;
+  clash_port: number;
+};
+
 export type RoutingRule = {
   id: string;
   enabled: boolean;

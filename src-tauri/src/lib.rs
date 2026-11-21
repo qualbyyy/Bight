@@ -6,8 +6,13 @@ mod state;
 mod tray;
 
 pub fn run() {
-    tauri::Builder::default()
+    #[cfg(mobile)]
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_vpn::init())
+        .plugin(tauri_plugin_barcode_scanner::init());
+    #[cfg(not(mobile))]
+    let builder = tauri::Builder::default().plugin(tauri_plugin_vpn::init());
+    builder
         .setup(|app| {
             let shared = state::load_app_state(app.handle())?;
             app.manage(shared.clone());
@@ -45,7 +50,7 @@ pub fn run() {
             commands::sync_connect_peer,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building Qonnect")
+        .expect("error while building Bight")
         .run(|app_handle, event| {
             if matches!(
                 event,

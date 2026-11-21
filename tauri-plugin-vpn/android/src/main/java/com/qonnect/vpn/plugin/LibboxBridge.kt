@@ -141,9 +141,6 @@ class LibboxBridge(private val service: CoreVpnService) : PlatformInterface, Com
                 this.dnsServer = StringArray(
                     link.dnsServers.mapNotNull { it.hostAddress }.iterator(),
                 )
-                this.dnsSearchDomain = StringArray(
-                    link.domains?.split(' ')?.filter { it.isNotBlank() }.orEmpty().iterator(),
-                )
                 this.gateway = StringArray(
                     link.routes.mapNotNull { it.gateway?.hostAddress }.filter { it != "0.0.0.0" }.iterator(),
                 )

@@ -126,6 +126,7 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           cd "$RUNNER_TEMP/sing-box"
           export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_NDK_LATEST_HOME:-}}"
+          export CGO_LDFLAGS_ALLOW='-l:.*'
           test -n "$ANDROID_NDK_HOME"
           go run ./cmd/internal/build_libbox -target android -platform android/arm64
           test -f libbox.aar

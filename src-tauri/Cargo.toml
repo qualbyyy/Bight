@@ -7,6 +7,7 @@ build = "build.rs"
 
 [lib]
 path = "src/lib.rs"
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
 name = "qonnect"
@@ -24,6 +25,7 @@ tokio = { version = "1.54", features = ["io-util", "macros", "net", "process", "
 uuid = { version = "1.12", features = ["serde", "v4"] }
 vpn-core = { path = "../crates/vpn-core" }
 vpn-sync = { path = "../crates/vpn-sync" }
+tauri-plugin-vpn = { path = "../tauri-plugin-vpn" }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
@@ -41,4 +43,4 @@ windows-sys = { version = "0.61.2", features = [
 ] }
 
 [build-dependencies]
-tauri-build = "2.7.6"
+tauri-build = { version = "2.7.6", features = [] }

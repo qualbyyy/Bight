@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Qonnect desktop window permissions","local":true,"windows":["main"],"permissions":["core:default"]},"mobile":{"identifier":"mobile","description":"Qonnect mobile core permissions reserved for the Phase 5 VPN plugin","local":true,"windows":["main"],"permissions":["core:default"],"platforms":["android","iOS"]}}

@@ -3,5 +3,6 @@ members = [
     "crates/vpn-core",
     "crates/vpn-sync",
     "src-tauri",
+    "tauri-plugin-vpn",
 ]
 resolver = "2"

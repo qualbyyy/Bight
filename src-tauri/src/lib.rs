@@ -7,6 +7,7 @@ mod tray;
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_vpn::init())
         .setup(|app| {
             let shared = state::load_app_state(app.handle())?;
             app.manage(shared.clone());

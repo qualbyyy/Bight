@@ -10,6 +10,8 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
+#[cfg(target_os = "android")]
+use tauri_plugin_vpn::VpnExt;
 use thiserror::Error;
 use tokio::{
     io::{AsyncBufReadExt, AsyncRead, BufReader},
@@ -72,34 +74,74 @@ pub async fn connect<R: Runtime>(
 ) -> Result<ConnectResult, CoreManagerError> {
     #[cfg(target_os = "android")]
     {
-        let _ = (app, shared, options);
-        return Err(CoreManagerError::Message(
-            "Android tunnel backend is provided by the Phase 5 VPN plugin".to_string(),
-        ));
+        return connect_android(app, shared, options).await;
     }
 
+    #[cfg(not(target_os = "android"))]
+    {
+        let operation_lock = shared.read().await.operation_lock();
+        let _operation = operation_lock.lock().await;
+
+        {
+            let guard = shared.read().await;
+            if guard.active_process.is_some() {
+                return Err(CoreManagerError::Message(
+                    "sing-box is already running".to_string(),
+                ));
+            }
+        }
+
+        set_status(app, shared, ConnectionStatus::Connecting).await;
+
+        match connect_inner(app, shared, options).await {
+            Ok(result) => Ok(result),
+            Err(error) => {
+                append_log(
+                    app,
+                    shared,
+                    LogStream::System,
+                    format!("connect failed: {error}"),
+                )
+                .await;
+                set_status(
+                    app,
+                    shared,
+                    ConnectionStatus::Error {
+                        message: error.to_string(),
+                    },
+                )
+                .await;
+                Err(error)
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "android")]
+async fn connect_android<R: Runtime>(
+    app: &AppHandle<R>,
+    shared: &SharedAppState,
+    _options: ConnectOptions,
+) -> Result<ConnectResult, CoreManagerError> {
     let operation_lock = shared.read().await.operation_lock();
     let _operation = operation_lock.lock().await;
-
     {
         let guard = shared.read().await;
-        if guard.active_process.is_some() {
+        if matches!(guard.status, ConnectionStatus::Connected { .. }) {
             return Err(CoreManagerError::Message(
-                "sing-box is already running".to_string(),
+                "Android VPN is already running".to_string(),
             ));
         }
     }
-
     set_status(app, shared, ConnectionStatus::Connecting).await;
-
-    match connect_inner(app, shared, options).await {
+    match connect_android_inner(app, shared).await {
         Ok(result) => Ok(result),
         Err(error) => {
             append_log(
                 app,
                 shared,
                 LogStream::System,
-                format!("connect failed: {error}"),
+                format!("Android VPN start failed: {error}"),
             )
             .await;
             set_status(
@@ -113,6 +155,57 @@ pub async fn connect<R: Runtime>(
             Err(error)
         }
     }
+}
+
+#[cfg(target_os = "android")]
+async fn connect_android_inner<R: Runtime>(
+    app: &AppHandle<R>,
+    shared: &SharedAppState,
+) -> Result<ConnectResult, CoreManagerError> {
+    let (profile, data_dir) = {
+        let guard = shared.read().await;
+        (guard.profile.clone(), guard.data_dir.clone())
+    };
+    let node = select_node(&profile, profile.active_node_id)?;
+    let mixed_port = reserve_port()?;
+    let clash_port = reserve_port()?;
+    let clash_secret = Uuid::new_v4().simple().to_string();
+    let config_options = BuildOptions::new(ProfileMode::Tun, TargetPlatform::Android)
+        .with_ports(mixed_port, clash_port)
+        .with_clash_secret(clash_secret.clone())
+        .with_cache_file_path(data_dir.join("cache.db").to_string_lossy().into_owned());
+    let config = build_config(&node, config_options)?;
+    validate_config(&config)?;
+    let config_json = serde_json::to_string(&config)?;
+    app.vpn()
+        .start_vpn(config_json)
+        .map_err(|error| CoreManagerError::Message(error.to_string()))?;
+    let clash_api = ClashApiClient::new(clash_port, Some(clash_secret))?;
+    {
+        let mut guard = shared.write().await;
+        guard.profile.active_node_id = Some(node.id);
+        guard.profile.mode = ProfileMode::Tun;
+        guard.profile.updated_at_ms = now_ms();
+        guard.clash_api = Some(clash_api);
+    }
+    save_state_async(shared).await?;
+    let result = ConnectResult {
+        node_id: node.id,
+        mode: ProfileMode::Tun,
+        mixed_port,
+        clash_port,
+    };
+    set_status(
+        app,
+        shared,
+        ConnectionStatus::Connected {
+            node_id: result.node_id,
+            clash_port: result.clash_port,
+            mode: result.mode,
+        },
+    )
+    .await;
+    Ok(result)
 }
 
 async fn connect_inner<R: Runtime>(
@@ -256,6 +349,21 @@ pub async fn disconnect<R: Runtime>(
 ) -> Result<(), CoreManagerError> {
     let operation_lock = shared.read().await.operation_lock();
     let _operation = operation_lock.lock().await;
+
+    #[cfg(target_os = "android")]
+    {
+        app.vpn()
+            .stop_vpn()
+            .map_err(|error| CoreManagerError::Message(error.to_string()))?;
+        {
+            let mut guard = shared.write().await;
+            guard.clash_api = None;
+        }
+        save_state_async(shared).await?;
+        set_status(app, shared, ConnectionStatus::Disconnected).await;
+        return Ok(());
+    }
+
     let process = {
         let mut guard = shared.write().await;
         guard.clash_api = None;

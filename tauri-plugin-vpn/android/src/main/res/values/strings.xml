@@ -1,0 +1,4 @@
+<resources>
+    <string name="vpn_notification_channel">Bight VPN</string>
+    <string name="vpn_notification_title">Bight</string>
+</resources>

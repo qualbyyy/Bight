@@ -1,0 +1,194 @@
+name: Build Bight
+
+on:
+  workflow_dispatch:
+    inputs:
+      sing_box_version:
+        description: sing-box tag used to build libbox.aar
+        required: false
+        default: v1.14.4
+        type: string
+      libbox_url:
+        description: Direct URL to a prebuilt libbox.aar
+        required: false
+        default: ''
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: -C debuginfo=0
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build Windows application
+        run: npx tauri build
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bight-windows
+          if-no-files-found: error
+          path: |
+            target/release/bundle/**/*.exe
+            target/release/bundle/**/*.msi
+            target/release/*.exe
+
+  build-android:
+    runs-on: ubuntu-latest
+    env:
+      SING_BOX_VERSION: ${{ inputs.sing_box_version || 'v1.14.4' }}
+      GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx512m -Dorg.gradle.workers.max=1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Initialize Android project if needed
+        shell: bash
+        run: |
+          if [[ ! -d src-tauri/gen/android ]]; then
+            npx tauri android init
+          fi
+
+      - name: Create libbox directory
+        shell: bash
+        run: mkdir -p tauri-plugin-vpn/android/libs
+
+      - name: Download libbox.aar
+        if: ${{ inputs.libbox_url != '' }}
+        shell: bash
+        env:
+          LIBBOX_URL: ${{ inputs.libbox_url }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-all-errors \
+            "$LIBBOX_URL" \
+            --output tauri-plugin-vpn/android/libs/libbox.aar
+
+      - name: Cache libbox.aar
+        if: ${{ inputs.libbox_url == '' }}
+        uses: actions/cache@v4
+        with:
+          path: tauri-plugin-vpn/android/libs/libbox.aar
+          key: libbox-${{ inputs.sing_box_version || 'v1.14.4' }}
+
+      - name: Check libbox source
+        id: libbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f tauri-plugin-vpn/android/libs/libbox.aar ]]; then
+            echo "needs_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Go
+        if: steps.libbox.outputs.needs_build == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Build libbox.aar
+        if: steps.libbox.outputs.needs_build == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$SING_BOX_VERSION" \
+            https://github.com/SagerNet/sing-box.git "$RUNNER_TEMP/sing-box"
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.13
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          cd "$RUNNER_TEMP/sing-box"
+          export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_NDK_LATEST_HOME:-}}"
+          test -n "$ANDROID_NDK_HOME"
+          go run ./cmd/internal/build_libbox -target android -platform android/arm64
+          test -f libbox.aar
+          cp libbox.aar "$GITHUB_WORKSPACE/tauri-plugin-vpn/android/libs/libbox.aar"
+
+      - name: Configure Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_NDK_LATEST_HOME:-}"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+
+      - name: Build Android APK
+        shell: bash
+        env:
+          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+        run: |
+          set -euo pipefail
+          export NDK_HOME="${NDK_HOME:-${ANDROID_NDK_LATEST_HOME:-}}"
+          export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$NDK_HOME}"
+          test -n "$NDK_HOME"
+          npx tauri android build --debug --apk --target aarch64
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: bight-android-apk
+          if-no-files-found: error
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
